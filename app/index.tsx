@@ -86,7 +86,9 @@ export default function HomeScreen() {
 
       {timeline.length > 0 && (
         <View style={styles.timelineHeader}>
-          <View style={[styles.timelineLine, { backgroundColor: theme.border }]} />
+          <View
+            style={[styles.timelineLine, { backgroundColor: theme.border }]}
+          />
         </View>
       )}
     </View>

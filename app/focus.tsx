@@ -1,282 +1,290 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  useColorScheme,
-  BackHandler,
-  Animated,
-  TouchableWithoutFeedback,
   Pressable,
+  SafeAreaView,
+  Animated,
+  Dimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { getTheme } from "../theme/colors";
 import { Waveform } from "../components";
 import { useAudioAnalyzer } from "../hooks/useAudioAnalyzer";
 import { useFocusMode } from "../hooks/useFocusMode";
+import { colors } from "../theme/colors";
 
-const THRESHOLD_DURATION = 4000; // 4 second fade in
-const LONG_PRESS_DURATION = 2000; // 2 second hold to exit
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const THRESHOLD_DURATION = 4000; // 4 second entry
+const UI_VISIBLE_DURATION = 3000; // Controls show for 3 seconds
+const LONG_PRESS_DURATION = 1500; // 1.5 second long press to exit
 
 export default function FocusScreen() {
-  const colorScheme = useColorScheme();
-  const theme = getTheme(colorScheme === "dark" ? "dark" : "light");
   const router = useRouter();
-
-  const { isInFocus, elapsedTime, enterTheVoid, exitTheVoid, formatDuration } =
-    useFocusMode();
-
-  const { audioData, hasPermission, isRecording } = useAudioAnalyzer(isInFocus);
-
-  // Threshold animation state
-  const [hasEnteredVoid, setHasEnteredVoid] = useState(false);
-  const thresholdOpacity = useRef(new Animated.Value(1)).current;
-  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const { levels, isAnalyzing, startAnalysis, stopAnalysis } = useAudioAnalyzer();
+  const { startSession, endSession, sessionDuration } = useFocusMode();
   
-  // Timer visibility state - tap to reveal
-  const [timerVisible, setTimerVisible] = useState(false);
-  const timerOpacity = useRef(new Animated.Value(0)).current;
-  const timerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Threshold animation state
+  const [isEntering, setIsEntering] = useState(true);
+  const thresholdOpacity = useRef(new Animated.Value(1)).current;
+  
+  // Tap-to-reveal controls
+  const [showControls, setShowControls] = useState(false);
+  const controlsOpacity = useRef(new Animated.Value(0)).current;
+  const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
+  
+  // Long press state
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const [isLongPressing, setIsLongPressing] = useState(false);
+  const longPressProgress = useRef(new Animated.Value(0)).current;
 
-  // Long press exit state
-  const [exitProgress, setExitProgress] = useState(0);
-  const exitPressStart = useRef<number | null>(null);
-  const exitAnimationRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Enter the void on mount
+  // Start session on mount
   useEffect(() => {
-    enterTheVoid();
+    startSession();
+    startAnalysis();
     
-    // Threshold entry animation - slow fade
-    setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(thresholdOpacity, {
-          toValue: 0,
-          duration: THRESHOLD_DURATION,
-          useNativeDriver: true,
-        }),
-        Animated.timing(contentOpacity, {
-          toValue: 1,
-          duration: THRESHOLD_DURATION,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setHasEnteredVoid(true);
-      });
-    }, 500);
-  }, []);
-
-  // Handle back button (Android)
-  useEffect(() => {
-    const handler = BackHandler.addEventListener("hardwareBackPress", () => {
-      // Prevent accidental back - require long press
-      return true;
-    });
-    return () => handler.remove();
-  }, []);
-
-  // Timer tap to reveal
-  const handleScreenTap = () => {
-    if (!hasEnteredVoid) return;
-    
-    // Clear existing timeout
-    if (timerTimeoutRef.current) {
-      clearTimeout(timerTimeoutRef.current);
-    }
-
-    setTimerVisible(true);
-    Animated.timing(timerOpacity, {
-      toValue: 1,
-      duration: 800,
-      useNativeDriver: true,
-    }).start();
-
-    // Auto-hide after 3 seconds
-    timerTimeoutRef.current = setTimeout(() => {
-      Animated.timing(timerOpacity, {
+    // Threshold entry animation
+    const timer = setTimeout(() => {
+      Animated.timing(thresholdOpacity, {
         toValue: 0,
         duration: 1500,
         useNativeDriver: true,
-      }).start(() => setTimerVisible(false));
-    }, 3000);
-  };
+      }).start(() => {
+        setIsEntering(false);
+      });
+    }, THRESHOLD_DURATION);
 
-  // Long press to exit
-  const handlePressIn = () => {
-    exitPressStart.current = Date.now();
+    return () => {
+      clearTimeout(timer);
+      stopAnalysis();
+    };
+  }, []);
+
+  // Format duration for display
+  const formatDuration = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
     
-    exitAnimationRef.current = setInterval(() => {
-      if (exitPressStart.current) {
-        const elapsed = Date.now() - exitPressStart.current;
-        const progress = Math.min(elapsed / LONG_PRESS_DURATION, 1);
-        setExitProgress(progress);
-        
-        if (progress >= 1) {
-          handleExit();
-        }
-      }
-    }, 16);
-  };
-
-  const handlePressOut = () => {
-    exitPressStart.current = null;
-    if (exitAnimationRef.current) {
-      clearInterval(exitAnimationRef.current);
+    if (hrs > 0) {
+      return `${hrs}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
     }
-    setExitProgress(0);
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleExit = async () => {
-    if (exitAnimationRef.current) {
-      clearInterval(exitAnimationRef.current);
+  // Show controls on tap
+  const revealControls = useCallback(() => {
+    if (isEntering) return;
+    
+    // Clear any existing hide timer
+    if (hideControlsTimer.current) {
+      clearTimeout(hideControlsTimer.current);
     }
     
-    // Fade out before exiting
-    Animated.timing(contentOpacity, {
-      toValue: 0,
-      duration: 1000,
+    setShowControls(true);
+    Animated.timing(controlsOpacity, {
+      toValue: 1,
+      duration: 200,
       useNativeDriver: true,
-    }).start(async () => {
-      await exitTheVoid();
+    }).start();
+    
+    // Auto-hide after delay
+    hideControlsTimer.current = setTimeout(() => {
+      Animated.timing(controlsOpacity, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }).start(() => {
+        setShowControls(false);
+      });
+    }, UI_VISIBLE_DURATION);
+  }, [isEntering, controlsOpacity]);
+
+  // Long press handlers for exit
+  const handlePressIn = useCallback(() => {
+    if (!showControls) return;
+    
+    setIsLongPressing(true);
+    longPressProgress.setValue(0);
+    
+    // Animate progress
+    Animated.timing(longPressProgress, {
+      toValue: 1,
+      duration: LONG_PRESS_DURATION,
+      useNativeDriver: false,
+    }).start();
+    
+    // Set timer for completion
+    longPressTimer.current = setTimeout(() => {
+      endSession();
       router.back();
-    });
-  };
+    }, LONG_PRESS_DURATION);
+  }, [showControls, endSession, router, longPressProgress]);
+
+  const handlePressOut = useCallback(() => {
+    setIsLongPressing(false);
+    
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    
+    Animated.timing(longPressProgress, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: false,
+    }).start();
+  }, [longPressProgress]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
+  }, []);
+
+  // Exit button width animation
+  const exitButtonWidth = longPressProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0%", "100%"],
+  });
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Threshold overlay - fades out on entry */}
-      <Animated.View
-        style={[
-          styles.thresholdOverlay,
-          { backgroundColor: theme.background, opacity: thresholdOpacity },
-        ]}
-        pointerEvents={hasEnteredVoid ? "none" : "auto"}
-      >
-        <Text style={[styles.thresholdText, { color: theme.textSecondary }]}>
-          entering the void
-        </Text>
-      </Animated.View>
+    <Pressable 
+      style={styles.container} 
+      onPress={revealControls}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        {/* Threshold entry overlay */}
+        {isEntering && (
+          <Animated.View
+            style={[styles.threshold, { opacity: thresholdOpacity }]}
+            pointerEvents="none"
+          >
+            <Text style={styles.thresholdText}>entering the void</Text>
+          </Animated.View>
+        )}
 
-      {/* Main content */}
-      <TouchableWithoutFeedback onPress={handleScreenTap}>
-        <Animated.View style={[styles.content, { opacity: contentOpacity }]}>
-          {/* Timer - only visible on tap */}
-          <View style={styles.header}>
-            <Animated.Text
-              style={[
-                styles.timer,
-                { color: theme.textSecondary, opacity: timerOpacity },
-              ]}
-            >
-              {formatDuration(elapsedTime)}
-            </Animated.Text>
-          </View>
+        {/* Main content */}
+        <View style={styles.content}>
+          {/* Timer - shown on tap */}
+          <Animated.View
+            style={[styles.timerContainer, { opacity: controlsOpacity }]}
+          >
+            <Text style={styles.timer}>{formatDuration(sessionDuration)}</Text>
+          </Animated.View>
 
-          {/* Waveform */}
+          {/* Waveform - always visible, the star of the show */}
           <View style={styles.waveformContainer}>
             <Waveform
-              levels={audioData.levels}
-              theme={theme}
-              isActive={isRecording}
+              levels={levels}
+              theme={colors}
+              isActive={isAnalyzing && !isEntering}
             />
           </View>
 
-          {/* Exit zone - long press at bottom */}
-          <Pressable
-            style={styles.exitZone}
-            onPressIn={handlePressIn}
-            onPressOut={handlePressOut}
+          {/* Exit button - shown on tap */}
+          <Animated.View
+            style={[styles.exitContainer, { opacity: controlsOpacity }]}
           >
-            <View style={styles.exitIndicator}>
-              {/* Progress bar for long press */}
-              <View
+            <Pressable
+              style={styles.exitButton}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+            >
+              {/* Progress fill */}
+              <Animated.View
                 style={[
                   styles.exitProgress,
-                  {
-                    backgroundColor: theme.textSecondary,
-                    width: `${exitProgress * 100}%`,
-                    opacity: exitProgress > 0 ? 0.3 : 0,
-                  },
+                  { width: exitButtonWidth },
                 ]}
               />
-              <Text
-                style={[
-                  styles.exitHint,
-                  {
-                    color: theme.textSecondary,
-                    opacity: exitProgress > 0 ? 0.5 : 0.15,
-                  },
-                ]}
-              >
-                {exitProgress > 0 ? "hold to exit" : "· · ·"}
+              <Text style={styles.exitText}>
+                {isLongPressing ? "releasing..." : "hold to exit"}
               </Text>
-            </View>
-          </Pressable>
-        </Animated.View>
-      </TouchableWithoutFeedback>
-    </View>
+            </Pressable>
+          </Animated.View>
+        </View>
+      </SafeAreaView>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
   },
-  thresholdOverlay: {
+  safeArea: {
+    flex: 1,
+  },
+  threshold: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.background,
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 10,
+    zIndex: 100,
   },
   thresholdText: {
-    fontSize: 11,
-    letterSpacing: 8,
-    fontWeight: "300",
     fontFamily: "Courier",
+    fontWeight: "300",
+    fontSize: 18,
+    color: colors.textMuted,
+    letterSpacing: 4,
+    textTransform: "lowercase",
   },
   content: {
     flex: 1,
-    justifyContent: "space-between",
-  },
-  header: {
+    justifyContent: "center",
     alignItems: "center",
-    paddingTop: 60,
-    minHeight: 80,
+  },
+  timerContainer: {
+    position: "absolute",
+    top: 60,
+    left: 0,
+    right: 0,
+    alignItems: "center",
   },
   timer: {
-    fontSize: 11,
-    letterSpacing: 8,
-    fontWeight: "300",
     fontFamily: "Courier",
+    fontWeight: "300",
+    fontSize: 48,
+    color: "#FFFFFF", // Pure white for visibility
+    letterSpacing: 2,
   },
   waveformContainer: {
-    flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
-  exitZone: {
-    paddingBottom: 50,
-    paddingTop: 30,
-    alignItems: "center",
+  exitContainer: {
+    position: "absolute",
+    bottom: 80,
+    left: 40,
+    right: 40,
   },
-  exitIndicator: {
-    alignItems: "center",
+  exitButton: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+    borderRadius: 4,
     justifyContent: "center",
-    height: 30,
-    width: 120,
+    alignItems: "center",
+    overflow: "hidden",
   },
   exitProgress: {
     position: "absolute",
     left: 0,
     top: 0,
     bottom: 0,
-    borderRadius: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
   },
-  exitHint: {
-    fontSize: 9,
-    letterSpacing: 4,
-    fontWeight: "300",
+  exitText: {
     fontFamily: "Courier",
+    fontWeight: "300",
+    fontSize: 14,
+    color: "#FFFFFF", // Pure white for visibility
+    letterSpacing: 3,
+    textTransform: "lowercase",
   },
 });

@@ -41,22 +41,22 @@ export function useAudioAnalyzer(isActive: boolean) {
 
   const updateLevels = useCallback((metering: number) => {
     const rawLevel = normalizeLevel(metering);
-    
+
     // Smooth the level to avoid jumpy motion
-    smoothedLevelRef.current = 
-      smoothedLevelRef.current * (1 - SMOOTHING_FACTOR) + 
+    smoothedLevelRef.current =
+      smoothedLevelRef.current * (1 - SMOOTHING_FACTOR) +
       rawLevel * SMOOTHING_FACTOR;
-    
+
     const smoothedLevel = smoothedLevelRef.current;
-    
+
     // Shift levels and add new one (creates flowing wave effect)
     const newLevels = [...levelsRef.current];
     newLevels.shift();
-    
+
     // Add very subtle organic variation
     const microVariation = (Math.random() - 0.5) * 0.03;
     const finalLevel = Math.max(0, Math.min(1, smoothedLevel + microVariation));
-    
+
     newLevels.push(finalLevel);
     levelsRef.current = newLevels;
     setAudioData({ metering, levels: newLevels });
@@ -117,14 +117,14 @@ export function useAudioAnalyzer(isActive: boolean) {
     }
 
     setIsRecording(false);
-    
+
     // Slowly fade out levels instead of instant reset
     const fadeOutLevels = () => {
-      const newLevels = levelsRef.current.map(l => l * 0.9);
+      const newLevels = levelsRef.current.map((l) => l * 0.9);
       levelsRef.current = newLevels;
       setAudioData({ metering: -160, levels: newLevels });
-      
-      if (newLevels.some(l => l > 0.01)) {
+
+      if (newLevels.some((l) => l > 0.01)) {
         setTimeout(fadeOutLevels, 50);
       } else {
         levelsRef.current = new Array(NUM_BARS).fill(0);

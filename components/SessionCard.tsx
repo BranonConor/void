@@ -40,8 +40,10 @@ export function SessionCard({
       style={[styles.container, { borderColor: theme.border }]}
     >
       {/* Timeline connector */}
-      <View style={[styles.timelineConnector, { backgroundColor: theme.border }]} />
-      
+      <View
+        style={[styles.timelineConnector, { backgroundColor: theme.border }]}
+      />
+
       {/* Session content */}
       <View style={styles.content}>
         <View style={styles.header}>
@@ -52,7 +54,7 @@ export function SessionCard({
             {formatTime(session.startTime)}
           </Text>
         </View>
-        
+
         <Text style={[styles.duration, { color: theme.text }]}>
           {session.isActive ? "..." : formatDuration(session.duration)}
         </Text>

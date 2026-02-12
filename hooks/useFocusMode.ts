@@ -102,22 +102,26 @@ export function useFocusMode() {
     yesterday.setDate(yesterday.getDate() - 1);
     if (date.toDateString() === today.toDateString()) return "today";
     if (date.toDateString() === yesterday.toDateString()) return "yesterday";
-    return date.toLocaleDateString([], { month: "short", day: "numeric" }).toLowerCase();
+    return date
+      .toLocaleDateString([], { month: "short", day: "numeric" })
+      .toLowerCase();
   };
 
   // Build timeline with gap detection
   const timeline = useMemo((): TimelineItem[] => {
-    const completedSessions = sessions.filter(s => !s.isActive && s.endTime);
+    const completedSessions = sessions.filter((s) => !s.isActive && s.endTime);
     if (completedSessions.length === 0) return [];
 
     const items: TimelineItem[] = [];
-    const sortedSessions = [...completedSessions].sort((a, b) => b.startTime - a.startTime);
+    const sortedSessions = [...completedSessions].sort(
+      (a, b) => b.startTime - a.startTime,
+    );
 
     const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
     for (let i = 0; i < sortedSessions.length; i++) {
       const session = sortedSessions[i];
-      
+
       // Add session as timeline item
       items.push({
         id: session.id,
@@ -138,9 +142,11 @@ export function useFocusMode() {
         today.setHours(0, 0, 0, 0);
         const sessionDay = new Date(session.startTime);
         sessionDay.setHours(0, 0, 0, 0);
-        
-        const daysSinceSession = Math.floor((today.getTime() - sessionDay.getTime()) / MS_PER_DAY);
-        
+
+        const daysSinceSession = Math.floor(
+          (today.getTime() - sessionDay.getTime()) / MS_PER_DAY,
+        );
+
         // Only add gap if more than 1 day since last session
         if (daysSinceSession > 1) {
           items.unshift({
@@ -159,9 +165,11 @@ export function useFocusMode() {
         gapStartDay.setHours(0, 0, 0, 0);
         const gapEndDay = new Date(gapEnd);
         gapEndDay.setHours(0, 0, 0, 0);
-        
-        const daysBetween = Math.floor((gapEndDay.getTime() - gapStartDay.getTime()) / MS_PER_DAY);
-        
+
+        const daysBetween = Math.floor(
+          (gapEndDay.getTime() - gapStartDay.getTime()) / MS_PER_DAY,
+        );
+
         // Only add gap if more than 1 day between sessions
         if (daysBetween > 1) {
           items.push({

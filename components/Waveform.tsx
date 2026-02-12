@@ -3,11 +3,11 @@ import { View, StyleSheet, Animated, Dimensions } from "react-native";
 import { ThemeColors } from "../types";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const BAR_COUNT = 48;
-const BAR_WIDTH = 2;
-const BAR_GAP = 3;
-const MAX_HEIGHT = 80;
-const MIN_HEIGHT = 1;
+const BAR_COUNT = 64; // More bars for smoother look
+const BAR_WIDTH = 3;
+const BAR_GAP = 2;
+const MAX_HEIGHT = 140; // Taller for more impressive visuals
+const MIN_HEIGHT = 2;
 
 interface WaveformProps {
   levels: number[];
@@ -20,39 +20,46 @@ interface BarProps {
   theme: ThemeColors;
   isActive: boolean;
   index: number;
+  total: number;
 }
 
-function WaveformBar({ level, theme, isActive, index }: BarProps) {
+function WaveformBar({ level, theme, isActive, index, total }: BarProps) {
   const heightAnim = useRef(new Animated.Value(MIN_HEIGHT)).current;
-  const opacityAnim = useRef(new Animated.Value(0.15)).current;
+  const opacityAnim = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
-    // Very subtle height - silence should be near-invisible
-    // Apply easing to make motion more organic
-    const easedLevel = Math.pow(level, 1.5); // Exponential easing - quiet stays quiet
-    const targetHeight = isActive
-      ? Math.max(MIN_HEIGHT, easedLevel * MAX_HEIGHT)
-      : MIN_HEIGHT;
+    // Smooth easing for organic feel
+    const easedLevel = Math.pow(level, 1.3);
     
-    // Opacity based on level - quiet = very faint
-    const targetOpacity = isActive
-      ? 0.15 + (easedLevel * 0.6) // 0.15 to 0.75
-      : 0.15;
+    // Add subtle wave pattern based on position
+    const positionWave = Math.sin((index / total) * Math.PI) * 0.15;
+    const adjustedLevel = Math.max(0, easedLevel + (isActive ? positionWave * easedLevel : 0));
+    
+    const targetHeight = isActive
+      ? Math.max(MIN_HEIGHT, adjustedLevel * MAX_HEIGHT)
+      : MIN_HEIGHT;
 
-    // Very slow, smooth animation - organic feel
+    // Higher base opacity, more visible
+    const targetOpacity = isActive
+      ? 0.4 + (easedLevel * 0.6) // 0.4 to 1.0 - much more visible
+      : 0.2;
+
+    // Smooth spring-like animation
     Animated.parallel([
-      Animated.timing(heightAnim, {
+      Animated.spring(heightAnim, {
         toValue: targetHeight,
-        duration: 300, // Slower transitions
+        damping: 12,
+        stiffness: 100,
+        mass: 0.8,
         useNativeDriver: false,
       }),
       Animated.timing(opacityAnim, {
         toValue: targetOpacity,
-        duration: 400,
+        duration: 200,
         useNativeDriver: false,
       }),
     ]).start();
-  }, [level, isActive, heightAnim, opacityAnim]);
+  }, [level, isActive, heightAnim, opacityAnim, index, total]);
 
   return (
     <View style={styles.barContainer}>
@@ -91,19 +98,21 @@ export function Waveform({ levels, theme, isActive }: WaveformProps) {
             theme={theme}
             isActive={isActive}
             index={i}
+            total={BAR_COUNT}
           />
         ))}
       </View>
-      
-      {/* Subtle reflection - very faint */}
+
+      {/* Reflection - more visible */}
       <View style={[styles.waveformRow, styles.reflection]}>
         {normalizedLevels.map((level, i) => (
           <WaveformBar
             key={`r-${i}`}
-            level={level * 0.2}
+            level={level * 0.35}
             theme={theme}
             isActive={isActive}
             index={i}
+            total={BAR_COUNT}
           />
         ))}
       </View>
@@ -115,7 +124,7 @@ const styles = StyleSheet.create({
   container: {
     alignItems: "center",
     width: SCREEN_WIDTH,
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
   },
   waveformRow: {
     flexDirection: "row",
@@ -131,12 +140,12 @@ const styles = StyleSheet.create({
   },
   bar: {
     width: BAR_WIDTH,
-    borderRadius: 0, // Sharp edges - brutalist
+    borderRadius: 1, // Slightly rounded for smoother look
   },
   reflection: {
-    opacity: 0.08,
+    opacity: 0.15,
     transform: [{ scaleY: -1 }],
-    height: MAX_HEIGHT * 0.2,
-    marginTop: 8,
+    height: MAX_HEIGHT * 0.3,
+    marginTop: 4,
   },
 });
