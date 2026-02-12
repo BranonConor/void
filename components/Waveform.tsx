@@ -123,14 +123,15 @@ export function Waveform({ levels, theme, isActive }: WaveformProps) {
 const styles = StyleSheet.create({
   container: {
     alignItems: "center",
+    justifyContent: "center",
     width: SCREEN_WIDTH,
-    paddingHorizontal: 10,
   },
   waveformRow: {
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "center",
     height: MAX_HEIGHT,
+    width: SCREEN_WIDTH,
   },
   barContainer: {
     alignItems: "center",

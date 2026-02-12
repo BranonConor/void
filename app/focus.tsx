@@ -6,18 +6,27 @@ import {
   Pressable,
   SafeAreaView,
   Animated,
-  Dimensions,
+  Easing,
 } from "react-native";
 import { useRouter } from "expo-router";
+import Svg, { Circle } from "react-native-svg";
 import { Waveform } from "../components";
 import { useAudioAnalyzer } from "../hooks/useAudioAnalyzer";
 import { useFocusMode } from "../hooks/useFocusMode";
 import { colors } from "../theme/colors";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const THRESHOLD_DURATION = 4000; // 4 second entry
 const UI_VISIBLE_DURATION = 3000; // Controls show for 3 seconds
-const LONG_PRESS_DURATION = 1500; // 1.5 second long press to exit
+const LONG_PRESS_DURATION = 1200; // 1.2 second long press to exit
+
+// Exit button dimensions
+const EXIT_BUTTON_SIZE = 56;
+const RING_SIZE = EXIT_BUTTON_SIZE + 8;
+const STROKE_WIDTH = 2;
+const RADIUS = (RING_SIZE - STROKE_WIDTH) / 2;
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export default function FocusScreen() {
   const router = useRouter();
@@ -29,7 +38,6 @@ export default function FocusScreen() {
   const thresholdOpacity = useRef(new Animated.Value(1)).current;
   
   // Tap-to-reveal controls
-  const [showControls, setShowControls] = useState(false);
   const controlsOpacity = useRef(new Animated.Value(0)).current;
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
   
@@ -37,6 +45,10 @@ export default function FocusScreen() {
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const [isLongPressing, setIsLongPressing] = useState(false);
   const longPressProgress = useRef(new Animated.Value(0)).current;
+  
+  // Pop animation
+  const popScale = useRef(new Animated.Value(1)).current;
+  const popOpacity = useRef(new Animated.Value(1)).current;
 
   // Start session on mount
   useEffect(() => {
@@ -74,14 +86,13 @@ export default function FocusScreen() {
 
   // Show controls on tap
   const revealControls = useCallback(() => {
-    if (isEntering) return;
+    if (isEntering || isLongPressing) return;
     
     // Clear any existing hide timer
     if (hideControlsTimer.current) {
       clearTimeout(hideControlsTimer.current);
     }
     
-    setShowControls(true);
     Animated.timing(controlsOpacity, {
       toValue: 1,
       duration: 200,
@@ -90,36 +101,60 @@ export default function FocusScreen() {
     
     // Auto-hide after delay
     hideControlsTimer.current = setTimeout(() => {
-      Animated.timing(controlsOpacity, {
-        toValue: 0,
-        duration: 400,
-        useNativeDriver: true,
-      }).start(() => {
-        setShowControls(false);
-      });
+      if (!isLongPressing) {
+        Animated.timing(controlsOpacity, {
+          toValue: 0,
+          duration: 600,
+          useNativeDriver: true,
+        }).start();
+      }
     }, UI_VISIBLE_DURATION);
-  }, [isEntering, controlsOpacity]);
+  }, [isEntering, isLongPressing, controlsOpacity]);
+
+  // Pop animation and exit
+  const triggerPopAndExit = useCallback(() => {
+    // Pop animation
+    Animated.parallel([
+      Animated.timing(popScale, {
+        toValue: 1.4,
+        duration: 200,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(popOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      endSession();
+      router.replace("/");
+    });
+  }, [endSession, router, popScale, popOpacity]);
 
   // Long press handlers for exit
   const handlePressIn = useCallback(() => {
-    if (!showControls) return;
-    
     setIsLongPressing(true);
     longPressProgress.setValue(0);
+    
+    // Clear hide timer while pressing
+    if (hideControlsTimer.current) {
+      clearTimeout(hideControlsTimer.current);
+    }
     
     // Animate progress
     Animated.timing(longPressProgress, {
       toValue: 1,
       duration: LONG_PRESS_DURATION,
+      easing: Easing.linear,
       useNativeDriver: false,
     }).start();
     
     // Set timer for completion
     longPressTimer.current = setTimeout(() => {
-      endSession();
-      router.back();
+      triggerPopAndExit();
     }, LONG_PRESS_DURATION);
-  }, [showControls, endSession, router, longPressProgress]);
+  }, [longPressProgress, triggerPopAndExit]);
 
   const handlePressOut = useCallback(() => {
     setIsLongPressing(false);
@@ -129,12 +164,22 @@ export default function FocusScreen() {
       longPressTimer.current = null;
     }
     
+    // Smoothly reset progress
     Animated.timing(longPressProgress, {
       toValue: 0,
-      duration: 150,
+      duration: 200,
       useNativeDriver: false,
     }).start();
-  }, [longPressProgress]);
+    
+    // Restart auto-hide timer
+    hideControlsTimer.current = setTimeout(() => {
+      Animated.timing(controlsOpacity, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }).start();
+    }, UI_VISIBLE_DURATION);
+  }, [longPressProgress, controlsOpacity]);
 
   // Cleanup
   useEffect(() => {
@@ -144,10 +189,10 @@ export default function FocusScreen() {
     };
   }, []);
 
-  // Exit button width animation
-  const exitButtonWidth = longPressProgress.interpolate({
+  // Circle progress animation
+  const strokeDashoffset = longPressProgress.interpolate({
     inputRange: [0, 1],
-    outputRange: ["0%", "100%"],
+    outputRange: [CIRCUMFERENCE, 0],
   });
 
   return (
@@ -171,6 +216,7 @@ export default function FocusScreen() {
           {/* Timer - shown on tap */}
           <Animated.View
             style={[styles.timerContainer, { opacity: controlsOpacity }]}
+            pointerEvents="none"
           >
             <Text style={styles.timer}>{formatDuration(sessionDuration)}</Text>
           </Animated.View>
@@ -184,26 +230,61 @@ export default function FocusScreen() {
             />
           </View>
 
-          {/* Exit button - shown on tap */}
+          {/* Exit button - circular icon with ring progress */}
           <Animated.View
             style={[styles.exitContainer, { opacity: controlsOpacity }]}
           >
-            <Pressable
-              style={styles.exitButton}
-              onPressIn={handlePressIn}
-              onPressOut={handlePressOut}
+            <Animated.View
+              style={[
+                styles.exitButtonWrapper,
+                {
+                  transform: [{ scale: popScale }],
+                  opacity: popOpacity,
+                },
+              ]}
             >
-              {/* Progress fill */}
-              <Animated.View
-                style={[
-                  styles.exitProgress,
-                  { width: exitButtonWidth },
-                ]}
-              />
-              <Text style={styles.exitText}>
-                {isLongPressing ? "releasing..." : "hold to exit"}
-              </Text>
-            </Pressable>
+              {/* Progress ring */}
+              <View style={styles.ringContainer}>
+                <Svg width={RING_SIZE} height={RING_SIZE} style={styles.ringSvg}>
+                  {/* Background ring */}
+                  <Circle
+                    cx={RING_SIZE / 2}
+                    cy={RING_SIZE / 2}
+                    r={RADIUS}
+                    stroke="rgba(255, 255, 255, 0.2)"
+                    strokeWidth={STROKE_WIDTH}
+                    fill="transparent"
+                  />
+                  {/* Progress ring */}
+                  <AnimatedCircle
+                    cx={RING_SIZE / 2}
+                    cy={RING_SIZE / 2}
+                    r={RADIUS}
+                    stroke="#FFFFFF"
+                    strokeWidth={STROKE_WIDTH}
+                    fill="transparent"
+                    strokeDasharray={CIRCUMFERENCE}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                    rotation="-90"
+                    origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
+                  />
+                </Svg>
+              </View>
+              
+              {/* Button */}
+              <Pressable
+                style={styles.exitButton}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+              >
+                {/* X icon */}
+                <View style={styles.iconContainer}>
+                  <View style={[styles.iconLine, styles.iconLine1]} />
+                  <View style={[styles.iconLine, styles.iconLine2]} />
+                </View>
+              </Pressable>
+            </Animated.View>
           </Animated.View>
         </View>
       </SafeAreaView>
@@ -250,7 +331,7 @@ const styles = StyleSheet.create({
     fontFamily: "Courier",
     fontWeight: "300",
     fontSize: 48,
-    color: "#FFFFFF", // Pure white for visibility
+    color: "#FFFFFF",
     letterSpacing: 2,
   },
   waveformContainer: {
@@ -260,31 +341,47 @@ const styles = StyleSheet.create({
   exitContainer: {
     position: "absolute",
     bottom: 80,
-    left: 40,
-    right: 40,
+    alignItems: "center",
+  },
+  exitButtonWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ringContainer: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ringSvg: {
+    transform: [{ rotate: "0deg" }],
   },
   exitButton: {
-    height: 50,
+    width: EXIT_BUTTON_SIZE,
+    height: EXIT_BUTTON_SIZE,
+    borderRadius: EXIT_BUTTON_SIZE / 2,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.6)",
-    borderRadius: 4,
+    borderColor: "rgba(255, 255, 255, 0.3)",
     justifyContent: "center",
     alignItems: "center",
-    overflow: "hidden",
   },
-  exitProgress: {
+  iconContainer: {
+    width: 18,
+    height: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  iconLine: {
     position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    width: 18,
+    height: 1.5,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 1,
   },
-  exitText: {
-    fontFamily: "Courier",
-    fontWeight: "300",
-    fontSize: 14,
-    color: "#FFFFFF", // Pure white for visibility
-    letterSpacing: 3,
-    textTransform: "lowercase",
+  iconLine1: {
+    transform: [{ rotate: "45deg" }],
+  },
+  iconLine2: {
+    transform: [{ rotate: "-45deg" }],
   },
 });

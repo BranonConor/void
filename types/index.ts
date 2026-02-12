@@ -26,6 +26,7 @@ export interface ThemeColors {
   surface: string;
   text: string;
   textSecondary: string;
+  textMuted: string;
   accent: string;
   waveform: string;
   waveformGlow: string;

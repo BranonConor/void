@@ -6,6 +6,7 @@ export const darkTheme: ThemeColors = {
   surface: "#0A0A0A",
   text: "#FFFFFF",
   textSecondary: "#666666",
+  textMuted: "#444444",
   accent: "#FFFFFF",
   waveform: "#FFFFFF",
   waveformGlow: "rgba(255, 255, 255, 0.2)",
@@ -18,6 +19,7 @@ export const lightTheme: ThemeColors = {
   surface: "#0A0A0A",
   text: "#FFFFFF",
   textSecondary: "#666666",
+  textMuted: "#444444",
   accent: "#FFFFFF",
   waveform: "#FFFFFF",
   waveformGlow: "rgba(255, 255, 255, 0.2)",
@@ -28,3 +30,9 @@ export const getTheme = (mode: "light" | "dark"): ThemeColors => {
   // Always return dark theme for monochromatic aesthetic
   return darkTheme;
 };
+
+// Default colors export for convenience
+export const colors = darkTheme;
+
+// Muted text color
+export const textMuted = "#666666";
