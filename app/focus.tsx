@@ -15,7 +15,7 @@ import { useAudioAnalyzer } from "../hooks/useAudioAnalyzer";
 import { useFocusMode } from "../hooks/useFocusMode";
 import { colors } from "../theme/colors";
 
-const THRESHOLD_DURATION = 4000; // 4 second entry
+const THRESHOLD_DURATION = 2000; // 2 second entry
 const UI_VISIBLE_DURATION = 3000; // Controls show for 3 seconds
 const LONG_PRESS_DURATION = 1200; // 1.2 second long press to exit
 
@@ -30,31 +30,34 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export default function FocusScreen() {
   const router = useRouter();
-  const { levels, isAnalyzing, startAnalysis, stopAnalysis } = useAudioAnalyzer();
-  const { startSession, endSession, sessionDuration } = useFocusMode();
-  
+  const { enterTheVoid, exitTheVoid, elapsedTime } = useFocusMode();
+
+  // Audio analysis - controlled by isAudioActive state
+  const [isAudioActive, setIsAudioActive] = useState(false);
+  const { audioData, isRecording } = useAudioAnalyzer(isAudioActive);
+
   // Threshold animation state
   const [isEntering, setIsEntering] = useState(true);
   const thresholdOpacity = useRef(new Animated.Value(1)).current;
-  
+
   // Tap-to-reveal controls
   const controlsOpacity = useRef(new Animated.Value(0)).current;
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
-  
+
   // Long press state
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const [isLongPressing, setIsLongPressing] = useState(false);
   const longPressProgress = useRef(new Animated.Value(0)).current;
-  
+
   // Pop animation
   const popScale = useRef(new Animated.Value(1)).current;
   const popOpacity = useRef(new Animated.Value(1)).current;
 
   // Start session on mount
   useEffect(() => {
-    startSession();
-    startAnalysis();
-    
+    enterTheVoid();
+    setIsAudioActive(true);
+
     // Threshold entry animation
     const timer = setTimeout(() => {
       Animated.timing(thresholdOpacity, {
@@ -68,7 +71,7 @@ export default function FocusScreen() {
 
     return () => {
       clearTimeout(timer);
-      stopAnalysis();
+      setIsAudioActive(false);
     };
   }, []);
 
@@ -77,7 +80,7 @@ export default function FocusScreen() {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    
+
     if (hrs > 0) {
       return `${hrs}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
     }
@@ -87,18 +90,18 @@ export default function FocusScreen() {
   // Show controls on tap
   const revealControls = useCallback(() => {
     if (isEntering || isLongPressing) return;
-    
+
     // Clear any existing hide timer
     if (hideControlsTimer.current) {
       clearTimeout(hideControlsTimer.current);
     }
-    
+
     Animated.timing(controlsOpacity, {
       toValue: 1,
       duration: 200,
       useNativeDriver: true,
     }).start();
-    
+
     // Auto-hide after delay
     hideControlsTimer.current = setTimeout(() => {
       if (!isLongPressing) {
@@ -111,45 +114,44 @@ export default function FocusScreen() {
     }, UI_VISIBLE_DURATION);
   }, [isEntering, isLongPressing, controlsOpacity]);
 
-  // Pop animation and exit
+  // Pop animation and exit - quick and snappy
   const triggerPopAndExit = useCallback(() => {
-    // Pop animation
     Animated.parallel([
       Animated.timing(popScale, {
-        toValue: 1.4,
-        duration: 200,
-        easing: Easing.out(Easing.cubic),
+        toValue: 0,
+        duration: 150,
+        easing: Easing.in(Easing.back(2)),
         useNativeDriver: true,
       }),
       Animated.timing(popOpacity, {
         toValue: 0,
-        duration: 200,
+        duration: 150,
         useNativeDriver: true,
       }),
     ]).start(() => {
-      endSession();
+      exitTheVoid();
       router.replace("/");
     });
-  }, [endSession, router, popScale, popOpacity]);
+  }, [exitTheVoid, router, popScale, popOpacity]);
 
   // Long press handlers for exit
   const handlePressIn = useCallback(() => {
     setIsLongPressing(true);
     longPressProgress.setValue(0);
-    
+
     // Clear hide timer while pressing
     if (hideControlsTimer.current) {
       clearTimeout(hideControlsTimer.current);
     }
-    
-    // Animate progress
+
+    // Animate progress - linear for smooth consistent motion
     Animated.timing(longPressProgress, {
       toValue: 1,
       duration: LONG_PRESS_DURATION,
       easing: Easing.linear,
       useNativeDriver: false,
     }).start();
-    
+
     // Set timer for completion
     longPressTimer.current = setTimeout(() => {
       triggerPopAndExit();
@@ -158,19 +160,25 @@ export default function FocusScreen() {
 
   const handlePressOut = useCallback(() => {
     setIsLongPressing(false);
-    
+
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    
-    // Smoothly reset progress
-    Animated.timing(longPressProgress, {
+
+    // Snappy spring reset
+    Animated.spring(longPressProgress, {
       toValue: 0,
-      duration: 200,
+      damping: 20,
+      stiffness: 300,
       useNativeDriver: false,
     }).start();
-    
+      toValue: 0,
+      damping: 15,
+      stiffness: 200,
+      useNativeDriver: false,
+    }).start();
+
     // Restart auto-hide timer
     hideControlsTimer.current = setTimeout(() => {
       Animated.timing(controlsOpacity, {
@@ -196,10 +204,7 @@ export default function FocusScreen() {
   });
 
   return (
-    <Pressable 
-      style={styles.container} 
-      onPress={revealControls}
-    >
+    <Pressable style={styles.container} onPress={revealControls}>
       <SafeAreaView style={styles.safeArea}>
         {/* Threshold entry overlay */}
         {isEntering && (
@@ -218,15 +223,15 @@ export default function FocusScreen() {
             style={[styles.timerContainer, { opacity: controlsOpacity }]}
             pointerEvents="none"
           >
-            <Text style={styles.timer}>{formatDuration(sessionDuration)}</Text>
+            <Text style={styles.timer}>{formatDuration(elapsedTime)}</Text>
           </Animated.View>
 
           {/* Waveform - always visible, the star of the show */}
           <View style={styles.waveformContainer}>
             <Waveform
-              levels={levels}
+              levels={audioData.levels}
               theme={colors}
-              isActive={isAnalyzing && !isEntering}
+              isActive={isRecording && !isEntering}
             />
           </View>
 
@@ -245,7 +250,11 @@ export default function FocusScreen() {
             >
               {/* Progress ring */}
               <View style={styles.ringContainer}>
-                <Svg width={RING_SIZE} height={RING_SIZE} style={styles.ringSvg}>
+                <Svg
+                  width={RING_SIZE}
+                  height={RING_SIZE}
+                  style={styles.ringSvg}
+                >
                   {/* Background ring */}
                   <Circle
                     cx={RING_SIZE / 2}
@@ -271,7 +280,7 @@ export default function FocusScreen() {
                   />
                 </Svg>
               </View>
-              
+
               {/* Button */}
               <Pressable
                 style={styles.exitButton}
@@ -308,11 +317,11 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   thresholdText: {
-    fontFamily: "Courier",
-    fontWeight: "300",
-    fontSize: 18,
+    fontFamily: "SpaceMono",
+    fontWeight: "400",
+    fontSize: 14,
     color: colors.textMuted,
-    letterSpacing: 4,
+    letterSpacing: 3,
     textTransform: "lowercase",
   },
   content: {
@@ -328,10 +337,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   timer: {
-    fontFamily: "Courier",
-    fontWeight: "300",
-    fontSize: 48,
-    color: "#FFFFFF",
+    fontFamily: "SpaceMono",
+    fontWeight: "400",
+    fontSize: 28,
+    color: "rgba(255, 255, 255, 0.5)",
     letterSpacing: 2,
   },
   waveformContainer: {

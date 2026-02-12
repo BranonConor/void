@@ -36,9 +36,9 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 10,
-    letterSpacing: 3,
-    fontWeight: "300",
-    fontFamily: "Courier",
+    letterSpacing: 2,
+    fontWeight: "400",
+    fontFamily: "SpaceMono",
     fontStyle: "italic",
   },
 });

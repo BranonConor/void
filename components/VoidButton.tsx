@@ -6,7 +6,9 @@ import {
   ViewStyle,
   TextStyle,
   ActivityIndicator,
+  View,
 } from "react-native";
+import { BlurView } from "expo-blur";
 import { ThemeColors } from "../types";
 
 interface VoidButtonProps {
@@ -32,29 +34,29 @@ export function VoidButton({
 }: VoidButtonProps) {
   const getButtonStyle = (): ViewStyle => {
     const sizeStyles: Record<string, ViewStyle> = {
-      small: { paddingVertical: 8, paddingHorizontal: 16 },
-      medium: { paddingVertical: 14, paddingHorizontal: 28 },
-      large: { paddingVertical: 18, paddingHorizontal: 36 },
+      small: { paddingVertical: 14, paddingHorizontal: 28, borderRadius: 26 },
+      medium: { paddingVertical: 18, paddingHorizontal: 40, borderRadius: 30 },
+      large: { paddingVertical: 22, paddingHorizontal: 48, borderRadius: 34 },
     };
 
     const variantStyles: Record<string, ViewStyle> = {
       primary: {
-        backgroundColor: theme.accent,
-        borderWidth: 2,
-        borderColor: theme.accent,
+        backgroundColor: "rgba(255, 255, 255, 0.15)",
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.3)",
       },
       secondary: {
-        backgroundColor: "transparent",
-        borderWidth: 2,
-        borderColor: theme.accent,
+        backgroundColor: "rgba(255, 255, 255, 0.08)",
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.2)",
       },
       ghost: { backgroundColor: "transparent" },
     };
 
     return {
-      borderRadius: 0,
       alignItems: "center",
       justifyContent: "center",
+      overflow: "hidden",
       ...sizeStyles[size],
       ...variantStyles[variant],
       opacity: disabled ? 0.5 : 1,
@@ -62,20 +64,15 @@ export function VoidButton({
   };
 
   const getTextStyle = (): TextStyle => {
-    const sizes: Record<string, number> = { small: 12, medium: 16, large: 20 };
-    const colors: Record<string, string> = {
-      primary: theme.background,
-      secondary: theme.accent,
-      ghost: theme.text,
-    };
+    const sizes: Record<string, number> = { small: 11, medium: 13, large: 16 };
 
     return {
       fontSize: sizes[size],
-      fontWeight: "300",
-      letterSpacing: 4,
+      fontWeight: "400",
+      letterSpacing: 3,
       textTransform: "lowercase",
-      color: colors[variant],
-      fontFamily: "Courier",
+      color: "rgba(255, 255, 255, 0.9)",
+      fontFamily: "SpaceMono",
     };
   };
 
@@ -83,13 +80,11 @@ export function VoidButton({
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled || loading}
-      activeOpacity={0.8}
+      activeOpacity={0.7}
       style={[getButtonStyle(), style]}
     >
       {loading ? (
-        <ActivityIndicator
-          color={variant === "primary" ? theme.background : theme.accent}
-        />
+        <ActivityIndicator color="rgba(255, 255, 255, 0.9)" />
       ) : (
         <Text style={getTextStyle()}>{title}</Text>
       )}

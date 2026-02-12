@@ -3,9 +3,10 @@ import { View, StyleSheet, Animated, Dimensions } from "react-native";
 import { ThemeColors } from "../types";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const BAR_COUNT = 64; // More bars for smoother look
-const BAR_WIDTH = 3;
-const BAR_GAP = 2;
+const BAR_WIDTH = 5; // Chunkier bars for lo-fi look
+const BAR_GAP = 5; // More gap between bars
+const BAR_TOTAL_WIDTH = BAR_WIDTH + BAR_GAP;
+const BAR_COUNT = Math.floor(SCREEN_WIDTH / BAR_TOTAL_WIDTH); // ~39 bars on iPhone
 const MAX_HEIGHT = 140; // Taller for more impressive visuals
 const MIN_HEIGHT = 2;
 
@@ -30,18 +31,21 @@ function WaveformBar({ level, theme, isActive, index, total }: BarProps) {
   useEffect(() => {
     // Smooth easing for organic feel
     const easedLevel = Math.pow(level, 1.3);
-    
+
     // Add subtle wave pattern based on position
     const positionWave = Math.sin((index / total) * Math.PI) * 0.15;
-    const adjustedLevel = Math.max(0, easedLevel + (isActive ? positionWave * easedLevel : 0));
-    
+    const adjustedLevel = Math.max(
+      0,
+      easedLevel + (isActive ? positionWave * easedLevel : 0),
+    );
+
     const targetHeight = isActive
       ? Math.max(MIN_HEIGHT, adjustedLevel * MAX_HEIGHT)
       : MIN_HEIGHT;
 
     // Higher base opacity, more visible
     const targetOpacity = isActive
-      ? 0.4 + (easedLevel * 0.6) // 0.4 to 1.0 - much more visible
+      ? 0.4 + easedLevel * 0.6 // 0.4 to 1.0 - much more visible
       : 0.2;
 
     // Smooth spring-like animation
@@ -80,11 +84,12 @@ function WaveformBar({ level, theme, isActive, index, total }: BarProps) {
 export function Waveform({ levels, theme, isActive }: WaveformProps) {
   // Pad or slice levels to match BAR_COUNT
   const normalizedLevels = React.useMemo(() => {
-    if (levels.length >= BAR_COUNT) {
-      return levels.slice(0, BAR_COUNT);
+    const safelevels = levels || [];
+    if (safelevels.length >= BAR_COUNT) {
+      return safelevels.slice(0, BAR_COUNT);
     }
     // Pad with zeros
-    return [...levels, ...new Array(BAR_COUNT - levels.length).fill(0)];
+    return [...safelevels, ...new Array(BAR_COUNT - safelevels.length).fill(0)];
   }, [levels]);
 
   return (
@@ -129,7 +134,7 @@ const styles = StyleSheet.create({
   waveformRow: {
     flexDirection: "row",
     alignItems: "flex-end",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     height: MAX_HEIGHT,
     width: SCREEN_WIDTH,
   },
@@ -137,7 +142,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-end",
     height: MAX_HEIGHT,
-    marginHorizontal: BAR_GAP / 2,
+    width: BAR_TOTAL_WIDTH,
   },
   bar: {
     width: BAR_WIDTH,

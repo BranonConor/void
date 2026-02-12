@@ -1,10 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Audio } from "expo-av";
+import { Dimensions } from "react-native";
 import { AudioData } from "../types";
 
-const NUM_BARS = 48;
-const UPDATE_INTERVAL = 80; // Slower updates for more organic feel
-const SMOOTHING_FACTOR = 0.3; // How much to smooth transitions (0-1, lower = smoother)
+// Calculate number of bars - lower fidelity for chunky lo-fi look
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const BAR_TOTAL_WIDTH = 10; // Wider spacing = fewer bars
+const NUM_BARS = Math.floor(SCREEN_WIDTH / BAR_TOTAL_WIDTH);
+const UPDATE_INTERVAL = 12; // ~83fps for ultra-responsive feel
+const SMOOTHING_FACTOR = 0.7; // Very responsive to changes
 
 export function useAudioAnalyzer(isActive: boolean) {
   const [audioData, setAudioData] = useState<AudioData>({
@@ -32,11 +36,13 @@ export function useAudioAnalyzer(isActive: boolean) {
 
   // More sensitive normalization for ambient sounds
   const normalizeLevel = (metering: number): number => {
-    // More sensitive range for quiet environments
-    const minDb = -50; // Silence threshold
-    const maxDb = -10; // Loud threshold
+    // Sensitive range for ambient sounds
+    const minDb = -60; // Silence threshold (very sensitive)
+    const maxDb = 0; // Loud threshold
     const normalized = (metering - minDb) / (maxDb - minDb);
-    return Math.max(0, Math.min(1, normalized));
+    // Boost quieter sounds more
+    const boosted = Math.pow(Math.max(0, normalized), 0.7);
+    return Math.min(1, boosted * 1.5); // Extra boost
   };
 
   const updateLevels = useCallback((metering: number) => {

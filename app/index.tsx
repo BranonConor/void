@@ -6,6 +6,9 @@ import {
   FlatList,
   useColorScheme,
   RefreshControl,
+  Pressable,
+  Share,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -21,6 +24,7 @@ export default function HomeScreen() {
 
   const {
     timeline,
+    sessions,
     isLoading,
     deleteSession,
     formatDuration,
@@ -31,6 +35,34 @@ export default function HomeScreen() {
 
   const handleEnterVoid = () => {
     router.push("/focus");
+  };
+
+  const handleExportData = async () => {
+    if (sessions.length === 0) {
+      Alert.alert("no data", "no sessions to export yet");
+      return;
+    }
+
+    const exportData = {
+      exported: new Date().toISOString(),
+      totalSessions: sessions.length,
+      sessions: sessions.map((s) => ({
+        id: s.id,
+        startTime: new Date(s.startTime).toISOString(),
+        endTime: s.endTime ? new Date(s.endTime).toISOString() : null,
+        durationSeconds: s.duration,
+        durationFormatted: formatDuration(s.duration),
+      })),
+    };
+
+    try {
+      await Share.share({
+        message: JSON.stringify(exportData, null, 2),
+        title: "void sessions",
+      });
+    } catch {
+      // User cancelled
+    }
   };
 
   const renderTimelineItem = ({ item }: { item: TimelineItem }) => {
@@ -84,6 +116,14 @@ export default function HomeScreen() {
         />
       </View>
 
+      {sessions.length > 0 && (
+        <Pressable onPress={handleExportData} style={styles.exportButton}>
+          <Text style={[styles.exportText, { color: theme.textSecondary }]}>
+            export data
+          </Text>
+        </Pressable>
+      )}
+
       {timeline.length > 0 && (
         <View style={styles.timelineHeader}>
           <View
@@ -135,13 +175,25 @@ const styles = StyleSheet.create({
     marginBottom: 60,
   },
   logo: {
-    fontSize: 24,
-    fontWeight: "300",
-    letterSpacing: 20,
-    fontFamily: "Courier",
+    fontSize: 22,
+    fontWeight: "400",
+    letterSpacing: 16,
+    fontFamily: "SpaceMono",
   },
   buttonContainer: {
     marginBottom: 60,
+  },
+  exportButton: {
+    marginBottom: 40,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  exportText: {
+    fontSize: 10,
+    fontWeight: "400",
+    letterSpacing: 2,
+    fontFamily: "SpaceMono",
+    textTransform: "lowercase",
   },
   timelineHeader: {
     width: "100%",
@@ -157,15 +209,15 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 11,
-    fontWeight: "300",
-    letterSpacing: 4,
+    fontWeight: "400",
+    letterSpacing: 3,
     marginBottom: 8,
-    fontFamily: "Courier",
+    fontFamily: "SpaceMono",
   },
   emptySubtext: {
     fontSize: 10,
     letterSpacing: 2,
-    fontFamily: "Courier",
-    fontWeight: "300",
+    fontFamily: "SpaceMono",
+    fontWeight: "400",
   },
 });
