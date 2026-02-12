@@ -1,8 +1,13 @@
 import React, { useEffect, useRef } from "react";
-import { View, StyleSheet, Animated } from "react-native";
+import { View, StyleSheet, Animated, Dimensions } from "react-native";
 import { ThemeColors } from "../types";
 
-const MAX_HEIGHT = 120;
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const BAR_COUNT = 48;
+const BAR_WIDTH = 2;
+const BAR_GAP = 3;
+const MAX_HEIGHT = 80;
+const MIN_HEIGHT = 1;
 
 interface WaveformProps {
   levels: number[];
@@ -14,23 +19,40 @@ interface BarProps {
   level: number;
   theme: ThemeColors;
   isActive: boolean;
+  index: number;
 }
 
-function WaveformBar({ level, theme, isActive }: BarProps) {
-  const heightAnim = useRef(new Animated.Value(4)).current;
+function WaveformBar({ level, theme, isActive, index }: BarProps) {
+  const heightAnim = useRef(new Animated.Value(MIN_HEIGHT)).current;
+  const opacityAnim = useRef(new Animated.Value(0.15)).current;
 
   useEffect(() => {
+    // Very subtle height - silence should be near-invisible
+    // Apply easing to make motion more organic
+    const easedLevel = Math.pow(level, 1.5); // Exponential easing - quiet stays quiet
     const targetHeight = isActive
-      ? Math.max(4, Math.round((level * MAX_HEIGHT) / 8) * 8)
-      : 4;
-    Animated.spring(heightAnim, {
-      toValue: targetHeight,
-      damping: 15,
-      stiffness: 150,
-      mass: 0.5,
-      useNativeDriver: false,
-    }).start();
-  }, [level, isActive, heightAnim]);
+      ? Math.max(MIN_HEIGHT, easedLevel * MAX_HEIGHT)
+      : MIN_HEIGHT;
+    
+    // Opacity based on level - quiet = very faint
+    const targetOpacity = isActive
+      ? 0.15 + (easedLevel * 0.6) // 0.15 to 0.75
+      : 0.15;
+
+    // Very slow, smooth animation - organic feel
+    Animated.parallel([
+      Animated.timing(heightAnim, {
+        toValue: targetHeight,
+        duration: 300, // Slower transitions
+        useNativeDriver: false,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: targetOpacity,
+        duration: 400,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [level, isActive, heightAnim, opacityAnim]);
 
   return (
     <View style={styles.barContainer}>
@@ -40,6 +62,7 @@ function WaveformBar({ level, theme, isActive }: BarProps) {
           {
             height: heightAnim,
             backgroundColor: theme.waveform,
+            opacity: opacityAnim,
           },
         ]}
       />
@@ -48,25 +71,39 @@ function WaveformBar({ level, theme, isActive }: BarProps) {
 }
 
 export function Waveform({ levels, theme, isActive }: WaveformProps) {
+  // Pad or slice levels to match BAR_COUNT
+  const normalizedLevels = React.useMemo(() => {
+    if (levels.length >= BAR_COUNT) {
+      return levels.slice(0, BAR_COUNT);
+    }
+    // Pad with zeros
+    return [...levels, ...new Array(BAR_COUNT - levels.length).fill(0)];
+  }, [levels]);
+
   return (
     <View style={styles.container}>
+      {/* Main waveform */}
       <View style={styles.waveformRow}>
-        {levels.map((level, i) => (
+        {normalizedLevels.map((level, i) => (
           <WaveformBar
             key={i}
             level={level}
             theme={theme}
             isActive={isActive}
+            index={i}
           />
         ))}
       </View>
+      
+      {/* Subtle reflection - very faint */}
       <View style={[styles.waveformRow, styles.reflection]}>
-        {levels.map((level, i) => (
+        {normalizedLevels.map((level, i) => (
           <WaveformBar
             key={`r-${i}`}
-            level={level * 0.3}
+            level={level * 0.2}
             theme={theme}
             isActive={isActive}
+            index={i}
           />
         ))}
       </View>
@@ -77,25 +114,29 @@ export function Waveform({ levels, theme, isActive }: WaveformProps) {
 const styles = StyleSheet.create({
   container: {
     alignItems: "center",
+    width: SCREEN_WIDTH,
+    paddingHorizontal: 20,
   },
   waveformRow: {
     flexDirection: "row",
     alignItems: "flex-end",
+    justifyContent: "center",
     height: MAX_HEIGHT,
   },
   barContainer: {
     alignItems: "center",
     justifyContent: "flex-end",
     height: MAX_HEIGHT,
-    marginHorizontal: 1,
+    marginHorizontal: BAR_GAP / 2,
   },
   bar: {
-    width: 6,
-    borderRadius: 2,
+    width: BAR_WIDTH,
+    borderRadius: 0, // Sharp edges - brutalist
   },
   reflection: {
-    opacity: 0.15,
+    opacity: 0.08,
     transform: [{ scaleY: -1 }],
-    height: MAX_HEIGHT * 0.3,
+    height: MAX_HEIGHT * 0.2,
+    marginTop: 8,
   },
 });

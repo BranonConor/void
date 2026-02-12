@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Audio } from "expo-av";
 import { AudioData } from "../types";
 
-const NUM_BARS = 32;
-const UPDATE_INTERVAL = 50;
+const NUM_BARS = 48;
+const UPDATE_INTERVAL = 80; // Slower updates for more organic feel
+const SMOOTHING_FACTOR = 0.3; // How much to smooth transitions (0-1, lower = smoother)
 
 export function useAudioAnalyzer(isActive: boolean) {
   const [audioData, setAudioData] = useState<AudioData>({
@@ -15,6 +16,7 @@ export function useAudioAnalyzer(isActive: boolean) {
 
   const recordingRef = useRef<Audio.Recording | null>(null);
   const levelsRef = useRef<number[]>(new Array(NUM_BARS).fill(0));
+  const smoothedLevelRef = useRef<number>(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const requestPermission = useCallback(async () => {
@@ -28,21 +30,34 @@ export function useAudioAnalyzer(isActive: boolean) {
     }
   }, []);
 
+  // More sensitive normalization for ambient sounds
   const normalizeLevel = (metering: number): number => {
-    const minDb = -60;
-    const maxDb = 0;
+    // More sensitive range for quiet environments
+    const minDb = -50; // Silence threshold
+    const maxDb = -10; // Loud threshold
     const normalized = (metering - minDb) / (maxDb - minDb);
     return Math.max(0, Math.min(1, normalized));
   };
 
   const updateLevels = useCallback((metering: number) => {
-    const level = normalizeLevel(metering);
+    const rawLevel = normalizeLevel(metering);
+    
+    // Smooth the level to avoid jumpy motion
+    smoothedLevelRef.current = 
+      smoothedLevelRef.current * (1 - SMOOTHING_FACTOR) + 
+      rawLevel * SMOOTHING_FACTOR;
+    
+    const smoothedLevel = smoothedLevelRef.current;
+    
+    // Shift levels and add new one (creates flowing wave effect)
     const newLevels = [...levelsRef.current];
     newLevels.shift();
-    const variation = (Math.random() - 0.5) * 0.15;
-    const adjusted = Math.max(0, Math.min(1, level + variation));
-    const quantized = Math.round(adjusted * 8) / 8;
-    newLevels.push(quantized);
+    
+    // Add very subtle organic variation
+    const microVariation = (Math.random() - 0.5) * 0.03;
+    const finalLevel = Math.max(0, Math.min(1, smoothedLevel + microVariation));
+    
+    newLevels.push(finalLevel);
     levelsRef.current = newLevels;
     setAudioData({ metering, levels: newLevels });
   }, []);
@@ -102,8 +117,21 @@ export function useAudioAnalyzer(isActive: boolean) {
     }
 
     setIsRecording(false);
-    levelsRef.current = new Array(NUM_BARS).fill(0);
-    setAudioData({ metering: -160, levels: new Array(NUM_BARS).fill(0) });
+    
+    // Slowly fade out levels instead of instant reset
+    const fadeOutLevels = () => {
+      const newLevels = levelsRef.current.map(l => l * 0.9);
+      levelsRef.current = newLevels;
+      setAudioData({ metering: -160, levels: newLevels });
+      
+      if (newLevels.some(l => l > 0.01)) {
+        setTimeout(fadeOutLevels, 50);
+      } else {
+        levelsRef.current = new Array(NUM_BARS).fill(0);
+        setAudioData({ metering: -160, levels: new Array(NUM_BARS).fill(0) });
+      }
+    };
+    fadeOutLevels();
 
     await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
   }, []);

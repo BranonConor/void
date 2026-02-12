@@ -10,9 +10,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { getTheme } from "../theme/colors";
-import { VoidButton, SessionCard } from "../components";
+import { VoidButton, SessionCard, GapCard } from "../components";
 import { useFocusMode } from "../hooks/useFocusMode";
-import { FocusSession } from "../types";
+import { TimelineItem } from "../types";
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
@@ -20,7 +20,7 @@ export default function HomeScreen() {
   const router = useRouter();
 
   const {
-    sessions,
+    timeline,
     isLoading,
     deleteSession,
     formatDuration,
@@ -33,24 +33,37 @@ export default function HomeScreen() {
     router.push("/focus");
   };
 
-  const renderSession = ({ item }: { item: FocusSession }) => (
-    <SessionCard
-      session={item}
-      theme={theme}
-      onDelete={deleteSession}
-      formatDuration={formatDuration}
-      formatTime={formatTime}
-      formatDate={formatDate}
-    />
-  );
+  const renderTimelineItem = ({ item }: { item: TimelineItem }) => {
+    if (item.type === "gap") {
+      return <GapCard days={item.duration} theme={theme} />;
+    }
+
+    // It's a session
+    return (
+      <SessionCard
+        session={{
+          id: item.id,
+          startTime: item.startTime,
+          endTime: item.endTime,
+          duration: item.duration,
+          isActive: false,
+        }}
+        theme={theme}
+        onDelete={deleteSession}
+        formatDuration={formatDuration}
+        formatTime={formatTime}
+        formatDate={formatDate}
+      />
+    );
+  };
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-        No sessions yet
+        no sessions yet
       </Text>
       <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-        Enter the void to begin
+        enter the void to begin
       </Text>
     </View>
   );
@@ -58,30 +71,22 @@ export default function HomeScreen() {
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.logoContainer}>
-        <Text style={[styles.logo, { color: theme.text }]}>VOID</Text>
-        <View style={[styles.logoDot, { backgroundColor: theme.accent }]} />
+        <Text style={[styles.logo, { color: theme.text }]}>void</Text>
       </View>
-
-      <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-        FOCUS • BREATHE • BE
-      </Text>
 
       <View style={styles.buttonContainer}>
         <VoidButton
-          title="Enter the Void"
+          title="enter the void"
           onPress={handleEnterVoid}
           theme={theme}
-          variant="primary"
-          size="large"
+          variant="secondary"
+          size="medium"
         />
       </View>
 
-      {sessions.filter((s) => !s.isActive).length > 0 && (
-        <View style={styles.sessionsHeader}>
-          <Text style={[styles.sessionsTitle, { color: theme.textSecondary }]}>
-            SESSION HISTORY
-          </Text>
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+      {timeline.length > 0 && (
+        <View style={styles.timelineHeader}>
+          <View style={[styles.timelineLine, { backgroundColor: theme.border }]} />
         </View>
       )}
     </View>
@@ -92,8 +97,8 @@ export default function HomeScreen() {
       style={[styles.container, { backgroundColor: theme.background }]}
     >
       <FlatList
-        data={sessions.filter((s) => !s.isActive)}
-        renderItem={renderSession}
+        data={timeline}
+        renderItem={renderTimelineItem}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={!isLoading ? renderEmpty : null}
@@ -103,7 +108,7 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={isLoading}
             onRefresh={refreshSessions}
-            tintColor={theme.accent}
+            tintColor={theme.textSecondary}
           />
         }
       />
@@ -120,59 +125,36 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: 80,
+    paddingBottom: 40,
     alignItems: "center",
   },
   logoContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 60,
   },
   logo: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: "300",
-    letterSpacing: 16,
-    fontFamily: "Courier",
-  },
-  logoDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 0,
-    marginLeft: 2,
-    marginTop: -16,
-  },
-  subtitle: {
-    fontSize: 9,
-    letterSpacing: 8,
-    fontWeight: "300",
-    marginBottom: 60,
+    letterSpacing: 20,
     fontFamily: "Courier",
   },
   buttonContainer: {
-    marginBottom: 48,
+    marginBottom: 60,
   },
-  sessionsHeader: {
+  timelineHeader: {
     width: "100%",
-    marginBottom: 16,
+    alignItems: "center",
   },
-  sessionsTitle: {
-    fontSize: 9,
-    letterSpacing: 6,
-    fontWeight: "300",
-    marginBottom: 12,
-    fontFamily: "Courier",
-  },
-  divider: {
-    height: 1,
-    width: "100%",
+  timelineLine: {
+    width: 1,
+    height: 40,
   },
   emptyContainer: {
     alignItems: "center",
     paddingTop: 40,
   },
   emptyText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "300",
     letterSpacing: 4,
     marginBottom: 8,

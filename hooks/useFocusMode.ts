@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { FocusSession } from "../types";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { FocusSession, TimelineItem } from "../types";
 import { sessionStore } from "../stores/sessionStore";
 
 export function useFocusMode() {
@@ -100,15 +100,89 @@ export function useFocusMode() {
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    if (date.toDateString() === today.toDateString()) return "Today";
-    if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-    return date.toLocaleDateString([], { month: "short", day: "numeric" });
+    if (date.toDateString() === today.toDateString()) return "today";
+    if (date.toDateString() === yesterday.toDateString()) return "yesterday";
+    return date.toLocaleDateString([], { month: "short", day: "numeric" }).toLowerCase();
   };
+
+  // Build timeline with gap detection
+  const timeline = useMemo((): TimelineItem[] => {
+    const completedSessions = sessions.filter(s => !s.isActive && s.endTime);
+    if (completedSessions.length === 0) return [];
+
+    const items: TimelineItem[] = [];
+    const sortedSessions = [...completedSessions].sort((a, b) => b.startTime - a.startTime);
+
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+    for (let i = 0; i < sortedSessions.length; i++) {
+      const session = sortedSessions[i];
+      
+      // Add session as timeline item
+      items.push({
+        id: session.id,
+        type: "session",
+        startTime: session.startTime,
+        endTime: session.endTime!,
+        duration: session.duration,
+      });
+
+      // Check for gap to next session (or to today if first session)
+      const nextSession = sortedSessions[i + 1];
+      const gapEnd = session.startTime;
+      const gapStart = nextSession ? nextSession.endTime! : null;
+
+      // For the most recent session, check gap to today
+      if (i === 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const sessionDay = new Date(session.startTime);
+        sessionDay.setHours(0, 0, 0, 0);
+        
+        const daysSinceSession = Math.floor((today.getTime() - sessionDay.getTime()) / MS_PER_DAY);
+        
+        // Only add gap if more than 1 day since last session
+        if (daysSinceSession > 1) {
+          items.unshift({
+            id: `gap-today-${session.id}`,
+            type: "gap",
+            startTime: sessionDay.getTime() + MS_PER_DAY,
+            endTime: today.getTime(),
+            duration: daysSinceSession - 1, // days lived in real life
+          });
+        }
+      }
+
+      // Check gap between sessions
+      if (gapStart) {
+        const gapStartDay = new Date(gapStart);
+        gapStartDay.setHours(0, 0, 0, 0);
+        const gapEndDay = new Date(gapEnd);
+        gapEndDay.setHours(0, 0, 0, 0);
+        
+        const daysBetween = Math.floor((gapEndDay.getTime() - gapStartDay.getTime()) / MS_PER_DAY);
+        
+        // Only add gap if more than 1 day between sessions
+        if (daysBetween > 1) {
+          items.push({
+            id: `gap-${session.id}-${nextSession.id}`,
+            type: "gap",
+            startTime: gapStartDay.getTime() + MS_PER_DAY,
+            endTime: gapEndDay.getTime(),
+            duration: daysBetween - 1, // days lived in real life
+          });
+        }
+      }
+    }
+
+    return items;
+  }, [sessions]);
 
   return {
     isInFocus,
     currentSession,
     sessions,
+    timeline,
     elapsedTime,
     isLoading,
     enterTheVoid,

@@ -6,6 +6,16 @@ export interface FocusSession {
   isActive: boolean;
 }
 
+// Timeline items can be sessions or gaps (lived real life)
+export interface TimelineItem {
+  id: string;
+  type: "session" | "gap";
+  startTime: number;
+  endTime: number;
+  duration: number; // seconds for sessions, days for gaps
+  isActive?: boolean;
+}
+
 export interface AudioData {
   metering: number;
   levels: number[];
