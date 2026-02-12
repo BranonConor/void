@@ -52,7 +52,7 @@ export function VoidButton({
     };
 
     return {
-      borderRadius: 4,
+      borderRadius: 0,
       alignItems: "center",
       justifyContent: "center",
       ...sizeStyles[size],
@@ -71,10 +71,11 @@ export function VoidButton({
 
     return {
       fontSize: sizes[size],
-      fontWeight: "700",
-      letterSpacing: 2,
-      textTransform: "uppercase",
+      fontWeight: "300",
+      letterSpacing: 4,
+      textTransform: "lowercase",
       color: colors[variant],
+      fontFamily: "Courier",
     };
   };
 

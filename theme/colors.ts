@@ -1,27 +1,30 @@
 import { ThemeColors } from "../types";
 
+// Monochromatic black & white theme - brutally simple
 export const darkTheme: ThemeColors = {
   background: "#000000",
   surface: "#0A0A0A",
   text: "#FFFFFF",
   textSecondary: "#666666",
-  accent: "#00FF88",
-  waveform: "#00FF88",
-  waveformGlow: "rgba(0, 255, 136, 0.3)",
-  border: "#1A1A1A",
+  accent: "#FFFFFF",
+  waveform: "#FFFFFF",
+  waveformGlow: "rgba(255, 255, 255, 0.2)",
+  border: "#222222",
 };
 
+// Force dark mode everywhere for consistent monochromatic look
 export const lightTheme: ThemeColors = {
-  background: "#FFFFFF",
-  surface: "#F5F5F5",
-  text: "#000000",
-  textSecondary: "#999999",
-  accent: "#00AA55",
-  waveform: "#000000",
-  waveformGlow: "rgba(0, 0, 0, 0.1)",
-  border: "#E5E5E5",
+  background: "#000000",
+  surface: "#0A0A0A",
+  text: "#FFFFFF",
+  textSecondary: "#666666",
+  accent: "#FFFFFF",
+  waveform: "#FFFFFF",
+  waveformGlow: "rgba(255, 255, 255, 0.2)",
+  border: "#222222",
 };
 
 export const getTheme = (mode: "light" | "dark"): ThemeColors => {
-  return mode === "dark" ? darkTheme : lightTheme;
+  // Always return dark theme for monochromatic aesthetic
+  return darkTheme;
 };

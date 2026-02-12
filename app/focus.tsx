@@ -104,9 +104,10 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   timer: {
-    fontSize: 14,
-    letterSpacing: 4,
-    fontWeight: "500",
+    fontSize: 12,
+    letterSpacing: 6,
+    fontWeight: "300",
+    fontFamily: "Courier",
   },
   waveformContainer: {
     flex: 1,
@@ -119,9 +120,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   permissionText: {
-    fontSize: 12,
-    letterSpacing: 1,
-    fontWeight: "600",
+    fontSize: 10,
+    letterSpacing: 2,
+    fontWeight: "300",
+    fontFamily: "Courier",
   },
   statusContainer: {
     flexDirection: "row",
@@ -131,14 +133,15 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 4,
+    height: 4,
+    borderRadius: 0,
   },
   statusText: {
-    fontSize: 10,
-    letterSpacing: 4,
-    fontWeight: "600",
+    fontSize: 9,
+    letterSpacing: 6,
+    fontWeight: "300",
+    fontFamily: "Courier",
   },
   footer: {
     alignItems: "center",

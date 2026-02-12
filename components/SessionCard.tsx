@@ -78,7 +78,7 @@ export function SessionCard({
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 4,
+    borderRadius: 0,
     padding: 16,
     marginBottom: 12,
   },
@@ -93,33 +93,39 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   date: {
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 1,
-    textTransform: "uppercase",
+    fontSize: 10,
+    fontWeight: "300",
+    letterSpacing: 2,
+    textTransform: "lowercase",
+    fontFamily: "Courier",
   },
   time: {
-    fontSize: 12,
+    fontSize: 10,
+    fontFamily: "Courier",
+    fontWeight: "300",
   },
   badge: {
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 2,
+    borderRadius: 0,
   },
   badgeText: {
-    fontSize: 8,
-    fontWeight: "700",
-    letterSpacing: 1,
+    fontSize: 7,
+    fontWeight: "300",
+    letterSpacing: 2,
+    fontFamily: "Courier",
   },
   label: {
-    fontSize: 10,
-    fontWeight: "600",
-    letterSpacing: 2,
+    fontSize: 9,
+    fontWeight: "300",
+    letterSpacing: 3,
     marginBottom: 4,
+    fontFamily: "Courier",
   },
   duration: {
-    fontSize: 24,
-    fontWeight: "700",
-    letterSpacing: 1,
+    fontSize: 20,
+    fontWeight: "300",
+    letterSpacing: 2,
+    fontFamily: "Courier",
   },
 });
